@@ -33,6 +33,25 @@
 // Declare external function only for testing
 extern void ksbic_resetCache(void);
 
+@interface KSBinaryImageCacheInit_Tests : XCTestCase
+@end
+
+@implementation KSBinaryImageCacheInit_Tests
+
+- (void)setUp
+{
+    ksbic_resetCache();
+}
+
+- (void)testInit
+{
+    [self measureBlock:^{
+        ksbic_init(false);
+    }];
+}
+
+@end
+
 @interface KSBinaryImageCache_Tests : XCTestCase
 @end
 

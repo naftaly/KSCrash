@@ -62,15 +62,12 @@ __attribute__((constructor)) static void ksbic_constructor(void)
  * @param header The header of the image to add.
  * @param slide The VM address slide of the image.
  */
-static void ksbic_addImageCallback(const struct mach_header *header, intptr_t slide)
+static void ksbic_addImageCallback_nolock(const struct mach_header *header, intptr_t slide)
 {
-    pthread_rwlock_wrlock(&g_imageCacheRWLock);
-
     // Check if image already exists in cache to prevent duplication
     for (uint32_t i = 0; i < g_cachedImageCount; i++) {
         if (g_binaryImageCache[i].header == header) {
             KSLOG_DEBUG("Image already in cache at index %d, skipping.", i);
-            pthread_rwlock_unlock(&g_imageCacheRWLock);
             return;
         }
     }
@@ -103,7 +100,12 @@ static void ksbic_addImageCallback(const struct mach_header *header, intptr_t sl
     } else {
         KSLOG_ERROR(@"Binary image cache full. Not caching image.");
     }
+}
 
+static void ksbic_addImageCallback(const struct mach_header *header, intptr_t slide)
+{
+    pthread_rwlock_wrlock(&g_imageCacheRWLock);
+    ksbic_addImageCallback_nolock(header, slide);
     pthread_rwlock_unlock(&g_imageCacheRWLock);
 }
 
@@ -112,10 +114,8 @@ static void ksbic_addImageCallback(const struct mach_header *header, intptr_t sl
  * @param header The header of the image to remove.
  * @param slide The VM address slide of the image.
  */
-static void ksbic_removeImageCallback(const struct mach_header *header, intptr_t slide)
+static void ksbic_removeImageCallback_nolock(const struct mach_header *header, intptr_t slide)
 {
-    pthread_rwlock_wrlock(&g_imageCacheRWLock);
-
     for (uint32_t i = 0; i < g_cachedImageCount; i++) {
         if (g_binaryImageCache[i].header == header) {
             if (g_binaryImageCache[i].name != NULL) {
@@ -130,12 +130,16 @@ static void ksbic_removeImageCallback(const struct mach_header *header, intptr_t
             break;
         }
     }
+}
 
+static void ksbic_removeImageCallback(const struct mach_header *header, intptr_t slide)
+{
+    pthread_rwlock_wrlock(&g_imageCacheRWLock);
+    ksbic_removeImageCallback_nolock(header, slide);
     pthread_rwlock_unlock(&g_imageCacheRWLock);
 }
 
 static _Atomic(bool) g_initialized = false;
-
 void ksbic_init(bool async)
 {
     bool expected = false;
@@ -146,6 +150,18 @@ void ksbic_init(bool async)
     KSLOG_DEBUG("Initializing binary image cache");
 
     dispatch_block_t loadBlock = ^{
+        // Load all image directly behind the lock
+        pthread_rwlock_wrlock(&g_imageCacheRWLock);
+        for (int i = 0; i < _dyld_image_count(); i++) {
+            const struct mach_header *header = _dyld_get_image_header(i);
+            if (header) {
+                intptr_t slide = _dyld_get_image_vmaddr_slide(i);
+                ksbic_addImageCallback_nolock(header, slide);
+            }
+        }
+        pthread_rwlock_unlock(&g_imageCacheRWLock);
+
+        // then add the callbacks
         _dyld_register_func_for_add_image(ksbic_addImageCallback);
         _dyld_register_func_for_remove_image(ksbic_removeImageCallback);
     };
