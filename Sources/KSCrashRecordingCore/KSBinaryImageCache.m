@@ -149,7 +149,7 @@ void ksbic_init(bool async)
         _dyld_register_func_for_add_image(ksbic_addImageCallback);
         _dyld_register_func_for_remove_image(ksbic_removeImageCallback);
     };
-    
+
     if (async) {
         dispatch_async(g_queue, loadBlock);
     } else {

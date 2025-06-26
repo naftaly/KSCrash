@@ -220,7 +220,7 @@ typedef struct {
      * **Default**: false
      */
     bool enableSigTermMonitoring;
-    
+
     /** If true, loads the binary image cache asynchonously.
      *
      * **Default**: false
