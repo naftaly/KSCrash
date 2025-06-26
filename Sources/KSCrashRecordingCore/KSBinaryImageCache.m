@@ -53,7 +53,7 @@ static dispatch_queue_t g_queue = NULL;
 __attribute__((constructor)) static void ksbic_constructor(void)
 {
     dispatch_queue_attr_t attr;
-    dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+    attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
     g_queue = dispatch_queue_create("com.kscrash.binary.images.queue", attr);
 }
 
@@ -136,7 +136,7 @@ static void ksbic_removeImageCallback(const struct mach_header *header, intptr_t
 
 static _Atomic(bool) g_initialized = false;
 
-void ksbic_init(void)
+void ksbic_init(bool async)
 {
     bool expected = false;
     if (!atomic_compare_exchange_strong(&g_initialized, &expected, true)) {
@@ -145,10 +145,16 @@ void ksbic_init(void)
 
     KSLOG_DEBUG("Initializing binary image cache");
 
-    dispatch_async(g_queue, ^{
+    dispatch_block_t loadBlock = ^{
         _dyld_register_func_for_add_image(ksbic_addImageCallback);
         _dyld_register_func_for_remove_image(ksbic_removeImageCallback);
-    });
+    };
+    
+    if (async) {
+        dispatch_async(g_queue, loadBlock);
+    } else {
+        dispatch_sync(g_queue, loadBlock);
+    }
 }
 
 // For testing purposes only. Used with extern in test files.
