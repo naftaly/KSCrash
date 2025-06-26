@@ -26,13 +26,13 @@
 
 #include "KSBinaryImageCache.h"
 
-#include <mach-o/dyld.h>
-#include <pthread.h>
-#include <stdatomic.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "KSLogger.h"
+#import <Foundation/Foundation.h>
+#import <mach-o/dyld.h>
+#import <pthread.h>
+#import <stdatomic.h>
+#import <stdlib.h>
+#import <string.h>
+#import "KSLogger.h"
 
 #ifndef KSBIC_MAX_CACHED_IMAGES
 #define KSBIC_MAX_CACHED_IMAGES 2000
@@ -48,6 +48,14 @@ typedef struct {
 static KSBinaryImageCacheEntry g_binaryImageCache[KSBIC_MAX_CACHED_IMAGES];
 static uint32_t g_cachedImageCount = 0;
 static pthread_rwlock_t g_imageCacheRWLock = PTHREAD_RWLOCK_INITIALIZER;
+static dispatch_queue_t g_queue = NULL;
+
+__attribute__((constructor)) static void ksbic_constructor(void)
+{
+    dispatch_queue_attr_t attr;
+    dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+    g_queue = dispatch_queue_create("com.kscrash.binary.images.queue", attr);
+}
 
 /** Add an image to the cache.
  *
@@ -84,7 +92,7 @@ static void ksbic_addImageCallback(const struct mach_header *header, intptr_t sl
             g_binaryImageCache[imageIndex].header = header;
             g_binaryImageCache[imageIndex].name = strdup(imageName);
             if (g_binaryImageCache[imageIndex].name == NULL) {
-                KSLOG_ERROR("Failed to duplicate image name: %s. Not caching image.", imageName);
+                KSLOG_ERROR(@"Failed to duplicate image name: %s. Not caching image.", imageName);
             } else {
                 g_binaryImageCache[imageIndex].imageVMAddrSlide = (uintptr_t)slide;
                 g_binaryImageCache[imageIndex].valid = true;
@@ -93,7 +101,7 @@ static void ksbic_addImageCallback(const struct mach_header *header, intptr_t sl
             }
         }
     } else {
-        KSLOG_ERROR("Binary image cache full. Not caching image.");
+        KSLOG_ERROR(@"Binary image cache full. Not caching image.");
     }
 
     pthread_rwlock_unlock(&g_imageCacheRWLock);
@@ -137,8 +145,10 @@ void ksbic_init(void)
 
     KSLOG_DEBUG("Initializing binary image cache");
 
-    _dyld_register_func_for_add_image(ksbic_addImageCallback);
-    _dyld_register_func_for_remove_image(ksbic_removeImageCallback);
+    dispatch_async(g_queue, ^{
+        _dyld_register_func_for_add_image(ksbic_addImageCallback);
+        _dyld_register_func_for_remove_image(ksbic_removeImageCallback);
+    });
 }
 
 // For testing purposes only. Used with extern in test files.
