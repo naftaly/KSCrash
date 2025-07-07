@@ -1,7 +1,7 @@
 //
-//  KSCrashMonitor_Deadlock.h
+//  KSCrashMonitor_NSException+Private.h
 //
-//  Created by Karl Stenerud on 2012-12-09.
+//  Created by Karl Stenerud on 2025-07-05.
 //
 //  Copyright (c) 2012 Karl Stenerud. All rights reserved.
 //
@@ -24,34 +24,13 @@
 // THE SOFTWARE.
 //
 
-/* Catches deadlocks in threads and queues.
- */
+#import <Foundation/Foundation.h>
 
-#ifndef HDR_KSCrashMonitor_Deadlock_h
-#define HDR_KSCrashMonitor_Deadlock_h
+#import "KSCrashMonitor_NSException.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef void KSCrashCustomNSExceptionReporter(NSException *exception, BOOL logAllThreads);
 
-#include <stdbool.h>
+typedef void OnNSExceptionHandlerEnabled(NSUncaughtExceptionHandler *uncaughtExceptionHandler,
+                                         KSCrashCustomNSExceptionReporter *customNSExceptionReporter);
 
-#include "KSCrashMonitor.h"
-#include "KSCrashNamespace.h"
-
-/** Set the interval between watchdog checks on the main thread.
- * Default is 5 seconds.
- *
- * @param value The number of seconds between checks (0 = disabled).
- */
-void kscm_setDeadlockHandlerWatchdogInterval(double value);
-
-/** Access the Monitor API.
- */
-KSCrashMonitorAPI *kscm_deadlock_getAPI(void);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // HDR_KSCrashMonitor_Deadlock_h
+void kscm_nsexception_setOnEnabledHandler(OnNSExceptionHandlerEnabled *onEnabled);

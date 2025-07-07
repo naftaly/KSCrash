@@ -29,6 +29,7 @@
 
 #import "KSCrash.h"
 #import "KSCrashError.h"
+#import "KSCrashMonitor_NSException+Private.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -42,8 +43,6 @@ NSString *kscrash_getDefaultInstallPath(void);
 #ifdef __cplusplus
 }
 #endif
-
-typedef void KSCrashCustomNSExceptionReporter(NSException *exception, BOOL logAllThreads);
 
 @interface KSCrash ()
 
